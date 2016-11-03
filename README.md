@@ -112,10 +112,8 @@ To begin an election, a follower increments its current term and transitions to 
 1. 赢得选举  
 A candidate wins an election if it receives votes from a majority of the servers in the full cluster for the same term. 
 cadidate得到大多数成员的投票后，赢得选举。
-
 Each server will vote for at most one candidate in a given term, on a first-come-first-served basis (note: Section 5.4 adds an additional restriction on votes). 
 每一轮term, 只能投给一个candidate
-
 The majority rule ensures that at most one candidate can win the election for a particular term (the Election Safety Prop- erty in Figure 3). 
 每次最多一个节点赢得选举
 
