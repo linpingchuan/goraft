@@ -8,12 +8,21 @@ const (
 	LeaderState
 )
 
+// Raft state machine
 type Raft struct {
-	State    uint32
+	// State
+	State uint32
+	// CurrTerm
 	CurrTerm uint32
 
-	Host  string
+	// Host of current server
+	Host string
+	// Leader host
+	Leader string
+	// Peers hosts
 	Peers []string
+	// IsLeader
+	IsLeader bool
 }
 
 func (r *Raft) updateState(state uint32) {

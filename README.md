@@ -126,6 +126,31 @@ if many followers become candidates at the same time, votes could be split so th
 多个节点同时成为candidate, 那么可能没有节点获得大多数vote。那么等待下次 election timeout ，重新进行选举。为了防止不停重复这种情况， election timeout 的时长一般设定在 150 - 300 ms 随机。对于平票，也是一样，每个candidate在开始竞选时，随机一个 election timeout， 如果平票，等待timeout时长，再进行下一次选举，这样下次选举再次平票的可能性就比较小了。
 
 
+## Log Replication
+
+Once a leader has been elected, it begins servicing client requests. Each client request contains a command to be executed by the replicated state machines. The leader appends the command to its log as a new entry, then issues AppendEntries RPCs in parallel to each of the other servers to replicate the entry. 
+When the entry has been safely replicated (as described below), the leader applies the entry to its state machine and returns the result of that execution to the client. If followers crash or run slowly, or if network packets are lost, the leader retries AppendEntries RPCs indefinitely (even after it has responded to the client) until all followers eventually store all log entries.
+
+产生leader后，leader开始处理 client 请求。每个请求包含一个 command，这个cmd将会被所有follower执行。 leader把log保存为新的entry, 然后并发 AppendEntries 到所有followers。当entry被安全复制到各个节点， leader把entry应用到自身节点，并把执行结果返回给客户端。如果 follower 崩溃或慢回应，leader无限重试， 直到所有 follower 保存了所有entries.
+
+The leader decides when it is safe to apply a log entry to the state machines; such an entry is called committed. 
+Raft guarantees that committed entries are durable and will eventually be executed by all of the available state machines. 
+
+Entry 包含一个 Term 数值，和一个 Command 命令。entry被commit表示， entry cmd被应用到 SM 是安全的。 
+Raft能保证 commited entry 最终会被所有 SM 执行。当leader 创建了一个 entry， 并且被复制到大部分 followers之上之后，entry就被认为是 committed.
+
+
+This also commits all preceding entries in the leader’s log, including entries created by previous leaders. 
+
+
+
+Section 5.4 discusses some subtleties when applying this rule after leader changes, and it also shows that this definition of commitment is safe.
+
+The leader keeps track of the highest index it knows to be committed, and it includes that index in future AppendEntries RPCs (including heartbeats) so that the other servers eventually find out. 
+
+Once a follower learns that a log entry is committed, it applies the entry to its local state machine (in log order).
+
+
 
 
 
