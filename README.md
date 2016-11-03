@@ -109,8 +109,7 @@ Leader周期性发送心跳给followers, 如果follower一段时间没有收到�
 To begin an election, a follower increments its current term and transitions to candidate state. It then votes for itself and issues RequestVote RPCs in parallel to each of the other servers in the cluster. A candidate continues in this state until one of three things happens: (a) it wins the election, (b) another server establishes itself as leader, or (c) a period of time goes by with no winner. These outcomes are discussed separately in the paragraphs below.
 开始选举的操作，follower递增自身current term, 转换到 candidate state. 发起 RequestVote 给其他节点， 选举有三种结果：1 赢得选举； 2 别的节点赢得选举； 3 一段时间过去后还是没有节点成为leader
 
-1. 赢得选举
-
+1. 赢得选举  
 A candidate wins an election if it receives votes from a majority of the servers in the full cluster for the same term. 
 cadidate得到大多数成员的投票后，赢得选举。
 
@@ -121,14 +120,12 @@ The majority rule ensures that at most one candidate can win the election for a 
 每次最多一个节点赢得选举
 
 
-2. 别的节点赢得选举
-
+2. 别的节点赢得选举  
 While waiting for votes, a candidate may receive an AppendEntries RPC from another server claiming to be leader. If the leader’s term (included in its RPC) is at least as large as the candidate’s current term, then the candidate recognizes the leader as legitimate and returns to follower state. If the term in the RPC is smaller than the candidate’s current term, then the candidate rejects the RPC and con- tinues in candidate state.
 在等待vote结果时，candidate可能会收到其他节点的Leader心跳(AppendEntries), 这时需要比较 current term 和 AppendEntries 传来的 term, 如果 currTerm > term, 则 拒绝请求，否则，自身退回 follower state, 承认对方为 Leader.
 
 
-3. 一段时间过去后还是没有节点成为leader
-
+3. 一段时间过去后还是没有节点成为leader  
 if many followers become candidates at the same time, votes could be split so that no candidate obtains a majority. When this happens, each candidate will time out and start a new election by incrementing its term and initiating another round of RequestVote RPCs. 
 多个节点同时成为candidate, 那么可能没有节点获得大多数vote。那么等待下次 election timeout ，重新进行选举。为了防止不停重复这种情况， election timeout 的时长一般设定在 150 - 300 ms 随机。对于平票，也是一样，每个candidate在开始竞选时，随机一个 election timeout， 如果平票，等待timeout时长，再进行下一次选举，这样下次选举再次平票的可能性就比较小了。
 
