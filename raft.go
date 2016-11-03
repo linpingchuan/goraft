@@ -9,9 +9,11 @@ const (
 )
 
 type Raft struct {
-	State uint32
+	State    uint32
+	CurrTerm uint32
 
-	CurrTerm uint64
+	Host  string
+	Peers []string
 }
 
 func (r *Raft) updateState(state uint32) {
