@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package goraft;
+
+service PPCServer {
+  rpc AppendEntries (Log) returns (AppendResp) {}
+  rpc RequestVote (Vote) returns (VoteResp) {}
+}
+
+message Log {
+    uint32 currTerm = 1;
+    bytes log = 2;
+}
+
+message AppendResp {
+    int32 resp = 1;
+}
+
+message Vote {
+    uint32 currTerm = 1;
+}
+
+message VoteResp {
+    int32 resp = 1;
+}

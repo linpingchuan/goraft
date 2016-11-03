@@ -68,5 +68,48 @@ Terms:
 begins with election,consecutive integer 选举产生轮次, 是连续整数
 if split vote happens, new election begins shortly. 如果平票，发起新选举
 
+Terms act as a logical clock [14] in Raft, and they allow servers to detect obsolete information such as stale leaders.
+Term 是一种 逻辑时钟, 它让server能够检测到过期的信息，例如 过期的Leader。 每个Server都会存一个当前term的数字，并且该值单调递增。
+
+Current terms are exchanged whenever servers communicate; 
+节点产生交互时，交换 current term
+
+if one server’s current term is smaller than the other’s, then it updates its current term to the larger value. 
+当节点发现自己的current term 小于 其他节点，则更新自己的值。
+
+If a candidate or leader discovers that its term is out of date, it immediately reverts to fol- lower state. 
+如果 candidate, leader 发现自己的 current term 小，则转换到 follower state.
+
+If a server receives a request with a stale term number, it rejects the request.
+如果server 接收到 小于自身 term 的请求，拒绝请求。
+
+
+Two Basic RPCs:
+
+- RequestVote:
+initiated by candidates during elections 竞选
+
+- AppendEntries:
+initiated by leaders to replicate log entries and to provide a form of heartbeat
+leader 用来复制日志 和 心跳
+
+A third RPC is introduced latter for transferring snapshots between servers
+
+Servers retry RPCs if they do not receive a response in a timely manner, and they issue RPCs in parallel for best performance.
+如果RPC无响应，一定时间后重试；PRC并发。
+
+
+## Leader Election
+
+
+
+
+
+
+
+
+
+
+
 
 
