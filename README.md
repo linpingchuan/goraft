@@ -130,11 +130,7 @@ While waiting for votes, a candidate may receive an AppendEntries RPC from anoth
 3. 一段时间过去后还是没有节点成为leader
 
 if many followers become candidates at the same time, votes could be split so that no candidate obtains a majority. When this happens, each candidate will time out and start a new election by incrementing its term and initiating another round of RequestVote RPCs. 
-多个节点同时成为candidate, 那么可能没有节点获得大多数vote。那么等待下次 election timeout ，重新进行选举。为了防止不停重复这种情况， election timeout 的时长一般设定在 150 - 300 ms 随机。
-
-
-
-
+多个节点同时成为candidate, 那么可能没有节点获得大多数vote。那么等待下次 election timeout ，重新进行选举。为了防止不停重复这种情况， election timeout 的时长一般设定在 150 - 300 ms 随机。对于平票，也是一样，每个candidate在开始竞选时，随机一个 election timeout， 如果平票，等待timeout时长，再进行下一次选举，这样下次选举再次平票的可能性就比较小了。
 
 
 
