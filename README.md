@@ -137,26 +137,37 @@ The leader decides when it is safe to apply a log entry to the state machines; s
 Raft guarantees that committed entries are durable and will eventually be executed by all of the available state machines. 
 
 Entry 包含一个 Term 数值，和一个 Command 命令。entry被commit表示， entry cmd被应用到 SM 是安全的。 
-Raft能保证 commited entry 最终会被所有 SM 执行。当leader 创建了一个 entry， 并且被复制到大部分 followers之上之后，entry就被认为是 committed.
-
-
-This also commits all preceding entries in the leader’s log, including entries created by previous leaders. 
-
-
-
-Section 5.4 discusses some subtleties when applying this rule after leader changes, and it also shows that this definition of commitment is safe.
+Raft能保证 commited entry 最终会被所有 SM 执行。当leader 创建了一个 entry， 并且被复制到大部分 followers之上之后，entry就被认为是 committed. 这也会提交leader之前的entry，包括之前的leader创建的entry。
+细节的情况稍后讨论。
 
 The leader keeps track of the highest index it knows to be committed, and it includes that index in future AppendEntries RPCs (including heartbeats) so that the other servers eventually find out. 
+leader 维护他提交的最新index(Log Index?), 并且把index包含在 AppendEntrie 中，因此其他follower可以发现。
 
 Once a follower learns that a log entry is committed, it applies the entry to its local state machine (in log order).
+当follower发现一个entry被提交了，他会应用这个entry到本地（垵序）。
 
 
+Raft maintains the following properties, which together constitute the Log Matching Property in Figure 3:
+• If two entries in different logs have the same index and term, then they store the same command.
+不同log中的 index, term 都相同的 两个 entry，他们的命令相同
+• If two entries in different logs have the same index and term, then the logs are identical in all preceding entries.
+不同log中的 index, term 都相同的 两个 entry，他们之前的所有entry都相同
 
+When sending an AppendEntries RPC, the leader includes the index and term of the entry in its log that immediately precedes the new entries. If the follower does not find an entry in its log with the same index and term, then it refuses the new entries. 
+当leader发送 AppendEntries 时，包含了前一个entry的index和term. 如果follower 在自己的log中没有找到 这个 term, index的entry，则拒绝新的entry。这能保证第二个特点。
 
+In Raft, the leader handles inconsistencies by forcing the followers’ logs to duplicate its own. This means that conflicting entries in follower logs will be overwritten with entries from the leader’s log. Section 5.4 will show that this is safe when coupled with one more restriction
+follower可能缺少entry，多出entry，或者 both。 Raft处理不一致性的方法是，强制 follwer复制(overwrite) leader的log。
 
+To bring a follower’s log into consistency with its own, the leader must find the latest log entry where the two logs agree, delete any entries in the follower’s log after that point, and send the follower all of the leader’s entries after that point. All of these actions happen in response to the consistency check performed by AppendEntries RPCs. The leader maintains a nextIndex for each follower, which is the index of the next log entry the leader will send to that follower. When a leader first comes to power, it initializes all nextIndex values to the index just after the last one in its log (11 in Figure 7). If a follower’s log is inconsistent with the leader’s, the AppendEntries consis- tency check will fail in the next AppendEntries RPC. Af- ter a rejection, the leader decrements nextIndex and retries the AppendEntries RPC. Eventually nextIndex will reach a point where the leader and follower logs match. When this happens, AppendEntries will succeed, which removes any conflicting entries in the follower’s log and appends entries from the leader’s log (if any). Once AppendEntries succeeds, the follower’s log is consistent with the leader’s, and it will remain that way for the rest of the term.
 
+> If desired, the protocol can be optimized to reduce the number of rejected AppendEntries RPCs. For example, when rejecting an AppendEntries request, the follower can include the term of the conflicting entry and the first index it stores for that term. With this information, the leader can decrement nextIndex to bypass all of the con- flicting entries in that term; one AppendEntries RPC will be required for each term with conflicting entries, rather than one RPC per entry. In practice, we doubt this opti- mization is necessary, since failures happen infrequently and it is unlikely that there will be many inconsistent en- tries.
 
-
-
-
+With this mechanism, a leader does not need to take any special actions to restore log consistency when it comes to power. It just begins normal operation, and the logs auto- matically converge in response to failures of the Append- Entries consistency check. A leader never overwrites or deletes entries in its own log (the Leader Append-Only Property in Figure 3).
+This log replication mechanism exhibits the desirable consensus properties described in Section 2: Raft can ac- cept, replicate, and apply new log entries as long as a ma- jority of the servers are up; in the normal case a new entry can be replicated with a single round of RPCs to a ma- jority of the cluster; and a single slow follower will not impact performance.
+5.4 Safety
+The previous sections described how Raft elects lead- ers and replicates log entries. However, the mechanisms described so far are not quite sufficient to ensure that each state machine executes exactly the same commands in the same order. For example, a follower might be unavailable while the leader commits several log entries, then it could be elected leader and overwrite these entries with new ones; as a result, different state machines might execute different command sequences.
+This section completes the Raft algorithm by adding a restriction on which servers may be elected leader. The restriction ensures that the leader for any given term con- tains all of the entries committed in previous terms (the Leader Completeness Property from Figure 3). Given the election restriction, we then make the rules for commit- ment more precise. Finally, we present a proof sketch for the Leader Completeness Property and show how it leads to correct behavior of the replicated state machine.
+5.4.1 Election restriction
+In any leader-based consensus algorithm, the leader must eventually store all of the committed log entries. In some consensus algorithms, such as Viewstamped Repli- cation [22], a leader can be elected even if it doesn’t initially contain all of the committed entries. These al- gorithms contain additional mechanisms to identify the missing entries and transmit them to the new leader, ei- ther during the election process or shortly afterwards. Un- fortunately, this results in considerable additional mecha- nism and complexity. Raft uses a simpler approach where it guarantees that all the committed entries from previous
 
