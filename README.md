@@ -195,5 +195,46 @@ Raft 在提交规则中引入这个额外的复杂度，是因为 当leader复�
 
 ### Safety argument
 
+Given the complete Raft algorithm, we can now argue more precisely that the Leader Completeness Property holds (this argument is based on the safety proof; see Section 9.2). We assume that the Leader Completeness Property does not hold, then we prove a contradiction. 
+
+Suppose the leader for term T (leaderT) commits a log entry from its term, but that log entry is not stored by the leader of some future term. Consider the smallest term U > T whose leader (leaderU) does not store the entry.
+
+### Follower and candidate crashes
+
+如果follower或者candidate奔溃，RequestVote and AppendEntries 会失败，Raft 会无限重试.
+如果节点在响应RPC之前挂了，那么他重启之后会再次收到相同的RPC，因为 Raft 是幂等的， 所以重复RPC没有问题。 如果follower接收到 AppendEntries，发现他的log entry已经存在于自己的log中，那么直接忽略这个entry就行。
+
+### Timing and availability
+
+One of our requirements for Raft is that safety must not depend on timing: the system must not produce incorrect results just because some event happens more quickly or slowly than expected. 
+However, availability (the ability of the system to respond to clients in a timely manner) must inevitably depend on timing. For example, if message exchanges take longer than the typical time between server crashes, candidates will not stay up long enough to win an election; without a steady leader, Raft cannot make progress.
+Leader election is the aspect of Raft where timing is most critical. Raft will be able to elect and maintain a steady leader as long as the system satisfies the following timing requirement:
+
+> broadcastTime << electionTimeout << MTBF
+
+In this inequality broadcastTime is the average time it takes a server to send RPCs in parallel to every server in the cluster and receive their responses; 
+broadcastTime 指 一个server发送RPC的平均间隔时间。
+
+electionTimeout is the election timeout described in Section 5.2; 
+停留在follower 状态的时间，150 - 300 ms 随机
+
+and MTBF is the average time between failures for a single server. 
+单个节点的两次崩溃之间的运行时间。
+
+broadcast time 应该比 electionTimeout 小一个数量级。
+当leader奔溃，系统会有大约一个 electionTimeout 时长的无法服务。
+broadcast time may range from 0.5ms to 20ms, election timeout is likely to be somewhere between 10ms and 500ms.
+
+
+## Cluster membership changes
+
+Up until now we have assumed that the cluster config- uration (the set of servers participating in the consensus algorithm) is fixed. In practice, it will occasionally be nec- essary to change the configuration, for example to replace servers when they fail or to change the degree of replica- tion. Although this can be done by taking the entire cluster off-line, updating configuration files, and then restarting the cluster, this would leave the cluster unavailable dur- ing the changeover. In addition, if there are any manual steps, they risk operator error. In order to avoid these is- sues, we decided to automate configuration changes and incorporate them into the Raft consensus algorithm.
+For the configuration change mechanism to be safe, there must be no point during the transition where it is possible for two leaders to be elected for the same term. Unfortunately, any approach where servers switch directly from the old configuration to the new configura- tion is unsafe. It isn’t possible to atomically switch all of the servers at once, so the cluster can potentially split into two independent majorities during the transition (see Fig- ure 10).
+In order to ensure safety, configuration changes must use a two-phase approach. There are a variety of ways to implement the two phases. For example, some systems (e.g., [22]) use the first phase to disable the old configura- tion so it cannot process client requests; then the second phase enables the new configuration. In Raft the cluster first switches to a transitional configuration we call joint consensus; once the joint consensus has been committed, the system then transitions to the new configuration. The joint consensus combines both the old and new configu- rations:
+
+
+
+
+
 
 
