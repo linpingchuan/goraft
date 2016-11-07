@@ -10,7 +10,7 @@ Raft states space reduction.
 Consensus algorithms should have:
 - safety: never return an incorrect result 安全
 - functional: available 可用
-- not depend on timing to unsure consistency 不依赖时钟
+- not depend on timing to ensure consistency 不依赖时钟
 - a minority of slow server should not impact the whole system 少数慢节点不影响log命令被执行
 
 ## Design 
@@ -159,15 +159,41 @@ When sending an AppendEntries RPC, the leader includes the index and term of the
 In Raft, the leader handles inconsistencies by forcing the followers’ logs to duplicate its own. This means that conflicting entries in follower logs will be overwritten with entries from the leader’s log. Section 5.4 will show that this is safe when coupled with one more restriction
 follower可能缺少entry，多出entry，或者 both。 Raft处理不一致性的方法是，强制 follwer复制(overwrite) leader的log。
 
-To bring a follower’s log into consistency with its own, the leader must find the latest log entry where the two logs agree, delete any entries in the follower’s log after that point, and send the follower all of the leader’s entries after that point. All of these actions happen in response to the consistency check performed by AppendEntries RPCs. The leader maintains a nextIndex for each follower, which is the index of the next log entry the leader will send to that follower. When a leader first comes to power, it initializes all nextIndex values to the index just after the last one in its log (11 in Figure 7). If a follower’s log is inconsistent with the leader’s, the AppendEntries consis- tency check will fail in the next AppendEntries RPC. Af- ter a rejection, the leader decrements nextIndex and retries the AppendEntries RPC. Eventually nextIndex will reach a point where the leader and follower logs match. When this happens, AppendEntries will succeed, which removes any conflicting entries in the follower’s log and appends entries from the leader’s log (if any). Once AppendEntries succeeds, the follower’s log is consistent with the leader’s, and it will remain that way for the rest of the term.
+To bring a follower’s log into consistency with its own, the leader must find the latest log entry where the two logs agree, delete any entries in the follower’s log after that point, and send the follower all of the leader’s entries after that point. 
+要保证follower的log的一致性，leader必须找到他们之前最近的那一条一致的log，删除follower的这一条log之后的log， 再发送leader的这一log之后的log给follower。这些动作是 AppendEntries 检查一致性（发现不一致）之后发生的。
+leader为每个follower维护一个 nextIndex, 表示下一个准备发送给follower的 log entry。 当节点刚成为leader 的时候，他初始化 nextIndex 为 他持有的最新的log加一。 如果follower的log不一致，那么 AppendEntries的一致性检查在接下来的一次RPC中会失败。 PRC拒绝后，leader把nextIndex 减一，然后重试， 直到成功为止。这时，把follower上不一致的log删除，把leader的log追加到follower上。 这样 follower 就和 leader 一直了。Leader不覆盖或删除自己的log。
 
-> If desired, the protocol can be optimized to reduce the number of rejected AppendEntries RPCs. For example, when rejecting an AppendEntries request, the follower can include the term of the conflicting entry and the first index it stores for that term. With this information, the leader can decrement nextIndex to bypass all of the con- flicting entries in that term; one AppendEntries RPC will be required for each term with conflicting entries, rather than one RPC per entry. In practice, we doubt this opti- mization is necessary, since failures happen infrequently and it is unlikely that there will be many inconsistent en- tries.
+> If desired, the protocol can be optimized to reduce the number of rejected AppendEntries RPCs. For example, when rejecting an AppendEntries request, the follower can include the term of the conflicting entry and the first index it stores for that term. With this information, the leader can decrement nextIndex to bypass all of the conflicting entries in that term; one AppendEntries RPC will be required for each term with conflicting entries, rather than one RPC per entry. In practice, we doubt this optimization is necessary, since failures happen infrequently and it is unlikely that there will be many inconsistent entries.
 
-With this mechanism, a leader does not need to take any special actions to restore log consistency when it comes to power. It just begins normal operation, and the logs auto- matically converge in response to failures of the Append- Entries consistency check. A leader never overwrites or deletes entries in its own log (the Leader Append-Only Property in Figure 3).
-This log replication mechanism exhibits the desirable consensus properties described in Section 2: Raft can ac- cept, replicate, and apply new log entries as long as a ma- jority of the servers are up; in the normal case a new entry can be replicated with a single round of RPCs to a ma- jority of the cluster; and a single slow follower will not impact performance.
-5.4 Safety
-The previous sections described how Raft elects lead- ers and replicates log entries. However, the mechanisms described so far are not quite sufficient to ensure that each state machine executes exactly the same commands in the same order. For example, a follower might be unavailable while the leader commits several log entries, then it could be elected leader and overwrite these entries with new ones; as a result, different state machines might execute different command sequences.
-This section completes the Raft algorithm by adding a restriction on which servers may be elected leader. The restriction ensures that the leader for any given term con- tains all of the entries committed in previous terms (the Leader Completeness Property from Figure 3). Given the election restriction, we then make the rules for commit- ment more precise. Finally, we present a proof sketch for the Leader Completeness Property and show how it leads to correct behavior of the replicated state machine.
-5.4.1 Election restriction
-In any leader-based consensus algorithm, the leader must eventually store all of the committed log entries. In some consensus algorithms, such as Viewstamped Repli- cation [22], a leader can be elected even if it doesn’t initially contain all of the committed entries. These al- gorithms contain additional mechanisms to identify the missing entries and transmit them to the new leader, ei- ther during the election process or shortly afterwards. Un- fortunately, this results in considerable additional mecha- nism and complexity. Raft uses a simpler approach where it guarantees that all the committed entries from previous
+
+## Safety
+
+以上描述的机制还不够充分保证安全性。例如，follower错过了leader提交的几个entry，但是之后他立刻被选举为新的leader，这时他会覆盖掉其他server的log，导致其他server执行不同的命令顺序。
+被选举leader的过程，需要引入一个限制。这个限制保证在任何一个term的leader拥有之前的term提交的所有entry。 
+
+
+### Election restriction
+
+Raft用简单的方式保证 在选举时，所有之前term的提交的log都存在于新的leader。log entry只能从 leader 单向流向 follower，leader不覆盖，删除他自己的log。
+Raft使用投票过程来防止一个 candidate 赢得选举，除非他的log持有所有提交的entry。一个 candidate 必须解除大部分节点来赢得选举，这意味着每个提交的entry一定至少在其中一个server。 
+
+If the candidate’s log is at least as up-to-date as any other log in that majority (where “up-to-date” is defined precisely below), then it will hold all the committed entries. The RequestVote RPC implements this restriction: the RPC includes information about the candidate’s log, and the voter denies its vote if its own log is more up-to-date than that of the candidate.
+如果candidate的log至少和其他多数节点log一样"新" (up-to-date), 那么他将拥有所有提交的entry。 RequestVote 实现了这个约束： RPC包含了candidate的log信息，如果投票者发现自己的log比candidate更“新”， 那么投票者会拒绝给他投票。
+“新”的定义是： 比较最新的entry的 index, term. term比较大的那个log 比较新， 如果term相同，那么 index 比较大的log 比较新。
+
+
+### Committing entries from previous terms
+
+As described in Section 5.3, a leader knows that an entry from its current term is committed once that entry is stored on a majority of the servers. 
+If a leader crashes before committing an entry, future leaders will attempt to finish replicating the entry. 
+However, a leader cannot immediately conclude that an entry from a previous term is committed once it is stored on a majority of servers. Figure 8 illustrates a situation where an old log entry is stored on a majority of servers, yet can still be overwritten by a future leader.
+
+leader认为一个entry被复制到大多数节点后，就认为这个entry被提交了。如果leader在提交entry之前崩溃了，未来的 leader会尝试复制entry。但是leader无法立即得到结论，一个上一个term的entry是否被提交了. 
+所以， Raft 不从过去的term中的log entry记录复制份数 并 提交。只对当前的term中entry 记录复制数，并提交entry。 当一个当前term的entry被提交了，那么他之前的所有entry都会被间接提交。
+
+Raft 在提交规则中引入这个额外的复杂度，是因为 当leader复制之前term的 entries， entries 能 保持他们原本的term number。 这样维护term number容易复查问题，同时也减少了 新leader发送的entry的量。
+
+### Safety argument
+
+
 
