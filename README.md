@@ -228,9 +228,20 @@ broadcast time may range from 0.5ms to 20ms, election timeout is likely to be so
 
 ## Cluster membership changes
 
-Up until now we have assumed that the cluster config- uration (the set of servers participating in the consensus algorithm) is fixed. In practice, it will occasionally be nec- essary to change the configuration, for example to replace servers when they fail or to change the degree of replica- tion. Although this can be done by taking the entire cluster off-line, updating configuration files, and then restarting the cluster, this would leave the cluster unavailable dur- ing the changeover. In addition, if there are any manual steps, they risk operator error. In order to avoid these is- sues, we decided to automate configuration changes and incorporate them into the Raft consensus algorithm.
-For the configuration change mechanism to be safe, there must be no point during the transition where it is possible for two leaders to be elected for the same term. Unfortunately, any approach where servers switch directly from the old configuration to the new configura- tion is unsafe. It isn’t possible to atomically switch all of the servers at once, so the cluster can potentially split into two independent majorities during the transition (see Fig- ure 10).
-In order to ensure safety, configuration changes must use a two-phase approach. There are a variety of ways to implement the two phases. For example, some systems (e.g., [22]) use the first phase to disable the old configura- tion so it cannot process client requests; then the second phase enables the new configuration. In Raft the cluster first switches to a transitional configuration we call joint consensus; once the joint consensus has been committed, the system then transitions to the new configuration. The joint consensus combines both the old and new configu- rations:
+to replace servers when they fail or to change the degree of replication，we decided to automate configuration changes and incorporate them into the Raft consensus algorithm.
+有时我们需要替换节点，或改变节点数。Raft有自动化配置变更的机制。
+
+不可能一次自动改变所有节点的配置，所以，集群可以在转变时分成两个独立的部分。为了保证安全，配置变更必须分为2个步骤。 集群首先转变使用一个 变化配置， 叫做 joint consensus; 第二步，系统再转变为新的配置。 joint consensus 组合了 旧配置 和 新配置。 
+
+1. Log entries are replicated to all servers in both configurations. 
+log entry 被复制到了新旧配置中的所有节点。
+
+2. Any server from either configuration may serve as leader. 
+新旧配置中的任意节点可能成为leader
+
+3. Agreement (for elections and entry commitment) requires separate majorities from both the old and new configurations.  
+选举和提交日志需要 旧配置中的大多数节点 和 新配置中的大多数节点 的同意。
+
 
 
 
