@@ -3,24 +3,38 @@ syntax = "proto3";
 package goraft;
 
 service PPCServer {
-  rpc AppendEntries (Log) returns (AppendResp) {}
-  rpc RequestVote (Vote) returns (VoteResp) {}
+    rpc AppendEntries (AERequest) returns (AEResp) {}
+    rpc RequestVote (RVRequest) returns (RVResp) {}
 }
 
-message Log {
-    uint32 currTerm = 1;
-    bytes log = 2;
+message LogEntry {
+    bytes Command = 1;
+    uint64 Index = 2;
+    uint32 Term = 3;
 }
 
-message AppendResp {
-    int32 respCode = 1;
+message AERequest {
+    string LeaderID = 1;
+    uint32 Term = 2;
+    uint32 PrevLogTerm = 3;
+    uint64 PrevLogIndex = 4;
+    uint64 LeaderCommit = 5;
+    repeated LogEntry Entries = 6; 
 }
 
-message Vote {
-    uint32 currTerm = 1;
-    string host = 2;
+message AEResp {
+    uint32 Term = 1;
+    bool Success = 2;
 }
 
-message VoteResp {
-    int32 respCode = 1;
+message RVRequest {
+    string CandidateID = 1;
+    uint64 LastLogIndex = 2;
+    uint32 LastLogTerm = 3;
+    uint32 Term = 4;
+}
+
+message RVResp {
+    uint32 Term = 1;
+    bool VoteGranted = 2;
 }

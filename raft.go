@@ -1,7 +1,5 @@
 package goraft
 
-import "sync/atomic"
-
 const (
 	FollowState uint32 = iota
 	CandidateState
@@ -10,25 +8,22 @@ const (
 
 // Raft state machine
 type Raft struct {
+	ID string
 	// State
-	State uint32
-	// CurrTerm
-	CurrTerm uint32
-
-	// Host of current server
-	Host string
-	// Leader host
-	Leader string
+	State int
 	// Peers hosts
 	Peers []string
-	// IsLeader
-	IsLeader bool
-}
 
-func (r *Raft) updateState(state uint32) {
-	atomic.StoreUint32(&r.State, state)
-}
+	// persistent on all server
+	CurrTerm uint32
+	VotedFor string
+	Logs     []LogEntry
 
-func (r *Raft) getState() uint32 {
-	return atomic.LoadUint32(&r.State)
+	// volatile on all server
+	commitIndex uint64
+	lastApplied uint64
+
+	// volatile on Leader
+	nextIndex  map[string]uint64
+	matchIndex map[string]uint64
 }
