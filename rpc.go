@@ -1,5 +1,8 @@
 package goraft
 
+import context "golang.org/x/net/context"
+import "log"
+
 // type AERequest struct {
 // 	LeaderID     string
 // 	Term         uint32
@@ -27,13 +30,15 @@ package goraft
 // }
 
 // AppendEntries to followers
-func (raft *Raft) AppendEntries(AERequest) AEResp {
+func (raft *Raft) AppendEntries(ctx context.Context, req *AERequest) (*AEResp, error) {
+	log.Printf("%#v", *req)
 
-	return AEResp{}
+	return &AEResp{}, nil
 }
 
 // RequestVote for leader election
-func (raft *Raft) RequestVote(RVRequest) RVResp {
+func (raft *Raft) RequestVote(ctx context.Context, req *RVRequest) (*RVResp, error) {
+	log.Printf("%#v", *req)
 
-	return RVResp{}
+	return &RVResp{}, nil
 }

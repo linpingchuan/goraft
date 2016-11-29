@@ -24,6 +24,6 @@ type Raft struct {
 	lastApplied uint64
 
 	// volatile on Leader
-	nextIndex  map[string]uint64
-	matchIndex map[string]uint64
+	nextIndex  []uint64
+	matchIndex []uint64
 }

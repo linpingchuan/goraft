@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package goraft;
 
-service PPCServer {
+service Raft {
     rpc AppendEntries (AERequest) returns (AEResp) {}
     rpc RequestVote (RVRequest) returns (RVResp) {}
 }
